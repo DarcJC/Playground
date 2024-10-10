@@ -1,10 +1,79 @@
 #include <iostream>
+#include <filesystem>
+#include "slang-com-ptr.h"
+#include "slang.h"
 
-using namespace std;
+// Many Slang API functions return detailed diagnostic information
+// (error messages, warnings, etc.) as a "blob" of data, or return
+// a null blob pointer instead if there were no issues.
+//
+// For convenience, we define a subroutine that will dump the information
+// in a diagnostic blob if one is produced, and skip it otherwise.
+//
+void diagnose_if_needed(slang::IBlob* diagnosticsBlob) {
+    if( diagnosticsBlob != nullptr ) {
+        printf("Diagnostics message:\n%s", static_cast<const char *>(diagnosticsBlob->getBufferPointer()));
+    }
+}
+
+void print_layout(slang::ProgramLayout* program_layout) {
+    if ( program_layout != nullptr ) {
+        std::cout << "Num entrypoint: " << program_layout->getEntryPointCount() << '\t';
+        std::cout << "Num parameter count: " << program_layout->getParameterCount() << '\t';
+        std::cout << "Num hashed string: " << program_layout->getHashedStringCount() << '\t';
+        std::cout << "Num type parameter: " << program_layout->getTypeParameterCount() << '\t';
+        std::cout << std::endl;
+    }
+}
+
+void print_function_info(slang::FunctionReflection* function_reflection) {
+    const char* name = function_reflection->getName();
+    std::cout << "=== Begin " << name << " (function) ===\n";
+    std::cout << "=== End " << name << " ===\n" << std::endl;
+}
 
 int main() {
-    
-    std::cout << "" << std::endl;
+    const std::filesystem::path current_working_dir = std::filesystem::current_path();
+    const std::string cwd_str = current_working_dir.generic_string();
+    std::cout << "CWD: " << current_working_dir << std::endl;
+
+    Slang::ComPtr<slang::IGlobalSession> slang_global_session;
+    createGlobalSession(slang_global_session.writeRef());
+
+    slang::TargetDesc target_desc{};
+    target_desc.format = SLANG_SPIRV;
+    target_desc.profile = slang_global_session->findProfile("spirv_1_6");
+    target_desc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY | SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM;
+    target_desc.forceGLSLScalarBufferLayout = true;
+
+    slang::SessionDesc session_desc{};
+    session_desc.targets = &target_desc;
+    session_desc.targetCount = 1;
+    std::vector<const char*> search_path;
+    search_path.push_back(cwd_str.c_str());
+    session_desc.searchPaths = search_path.data();
+    session_desc.searchPathCount = 1;
+    session_desc.preprocessorMacroCount = 0;
+
+    Slang::ComPtr<slang::ISession> session;
+    if (SLANG_FAILED(slang_global_session->createSession(session_desc, session.writeRef()))) {
+        return 1;
+    }
+
+    Slang::ComPtr<slang::IBlob> diagnostic_blob;
+    slang::IModule* module = session->loadModule("test", diagnostic_blob.writeRef());
+
+    diagnose_if_needed(diagnostic_blob);
+
+    print_layout(module->getLayout());
+    for (int i = 0; i < module->getDefinedEntryPointCount(); ++i) {
+        Slang::ComPtr<slang::IEntryPoint> entry_point;
+        if (SLANG_FAILED(module->getDefinedEntryPoint(i, entry_point.writeRef()))) {
+            std::cerr << "No way!" << std::endl;
+            continue;
+        }
+        print_function_info(entry_point->getFunctionReflection());
+    }
 
     return 0;
 }

@@ -15,7 +15,7 @@ include(CMakeDependentOption)
 include(GenerateExportHeader)
 include(CMakeParseArguments)
 
-# Loading thridparty modules
+# Loading thirdparty modules
 add_subdirectory(thirdparty)
 
 # Add playground projects
