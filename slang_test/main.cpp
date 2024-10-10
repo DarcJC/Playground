@@ -26,9 +26,23 @@ void print_layout(slang::ProgramLayout* program_layout) {
     }
 }
 
+void print_variable_info(slang::VariableReflection* variable_reflection) {
+    std::cout << variable_reflection->getName() << ": ";
+    std::cout << variable_reflection->getType()->getName();
+    std::cout << std::endl;
+}
+
 void print_function_info(slang::FunctionReflection* function_reflection) {
     const char* name = function_reflection->getName();
     std::cout << "=== Begin " << name << " (function) ===\n";
+    std::cout << "Num parameters: " << function_reflection->getParameterCount() << '\t';
+    std::cout << "Num user attribute: " << function_reflection->getUserAttributeCount() << '\n';
+    std::cout << "Parameters: \n";
+    for (int i = 0; i < function_reflection->getParameterCount(); ++i) {
+        slang::VariableReflection* variable_reflection = function_reflection->getParameterByIndex(i);
+        std::cout << "\t";
+        print_variable_info(variable_reflection);
+    }
     std::cout << "=== End " << name << " ===\n" << std::endl;
 }
 
@@ -65,7 +79,9 @@ int main() {
 
     diagnose_if_needed(diagnostic_blob);
 
-    print_layout(module->getLayout());
+    std::vector<slang::IComponentType*> program_components{};
+    program_components.push_back(module);
+
     for (int i = 0; i < module->getDefinedEntryPointCount(); ++i) {
         Slang::ComPtr<slang::IEntryPoint> entry_point;
         if (SLANG_FAILED(module->getDefinedEntryPoint(i, entry_point.writeRef()))) {
@@ -73,7 +89,17 @@ int main() {
             continue;
         }
         print_function_info(entry_point->getFunctionReflection());
+        program_components.push_back(entry_point);
     }
+
+    Slang::ComPtr<slang::IComponentType> linked_program;
+    if (SLANG_FAILED(session->createCompositeComponentType(program_components.data(), program_components.size(), linked_program.writeRef(), diagnostic_blob.writeRef()))) {
+        std::cerr << "No wayyy!" << std::endl;
+        return 1;
+    }
+    diagnose_if_needed(diagnostic_blob);
+
+    print_layout(linked_program->getLayout());
 
     return 0;
 }
