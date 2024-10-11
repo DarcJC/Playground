@@ -3,6 +3,8 @@
 #include "slang-com-ptr.h"
 #include "slang.h"
 
+static const char* NULL_CHAR = "null";
+
 // Many Slang API functions return detailed diagnostic information
 // (error messages, warnings, etc.) as a "blob" of data, or return
 // a null blob pointer instead if there were no issues.
@@ -16,12 +18,31 @@ void diagnose_if_needed(slang::IBlob* diagnosticsBlob) {
     }
 }
 
+const char* safe_c_str(const char* input) {
+    if (nullptr == input) {
+        return NULL_CHAR;
+    }
+    return input;
+}
+
 void print_layout(slang::ProgramLayout* program_layout) {
     if ( program_layout != nullptr ) {
         std::cout << "Num entrypoint: " << program_layout->getEntryPointCount() << '\t';
         std::cout << "Num parameter count: " << program_layout->getParameterCount() << '\t';
         std::cout << "Num hashed string: " << program_layout->getHashedStringCount() << '\t';
         std::cout << "Num type parameter: " << program_layout->getTypeParameterCount() << '\t';
+        std::cout << '\n';
+        std::cout << "Global constant buffer size: " << program_layout->getGlobalConstantBufferSize() << '\t';
+        std::cout << "Global constant buffer binding: " << program_layout->getGlobalConstantBufferBinding() << '\t';
+        std::cout << std::endl;
+        for (int i = 0; i < program_layout->getParameterCount(); ++i) {
+            auto* parameter_info = program_layout->getParameterByIndex(i);
+            std::cout << "[slot=" << parameter_info->getBindingIndex() << ", space=" << parameter_info->getBindingSpace() << ", category=" << parameter_info->getCategory() << "] " << parameter_info->getName() << std::endl;
+        }
+        for (int i = 0; i < program_layout->getTypeParameterCount(); ++i) {
+            auto* parameter_info = program_layout->getTypeParameterByIndex(i);
+            std::cout << "[Type Parameter] " << safe_c_str(parameter_info->getName()) << " : " << parameter_info->getIndex() << std::endl;
+        }
         std::cout << std::endl;
     }
 }
